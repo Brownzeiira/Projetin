@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>L.O.R.E. - Motor de Sprites Reais</title>
+    <style>
+        :root {
+            --bg-dark: #000;
+            --grid-size: 50px;
+        }
+
+        body {
+            margin: 0; 
+            background: var(--bg-dark);
+            overflow: hidden; 
+            font-family: monospace;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        #map-container {
+            flex-grow: 1;
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+        }
+
+        #map {
+            display: grid;
+            /* Mapa 15x15 */
+            grid-template-columns: repeat(15, var(--grid-size));
+            grid-template-rows: repeat(15, var(--grid-size));
+            transform-origin: center;
+            transition: transform 0.3s ease-out;
+            /* O segredo para pixel art ficar nítida! */
+            image-rendering: pixelated; 
+        }
+
+        .cell {
+            width: var(--grid-size); 
+            height: var(--grid-size);
+            position: relative;
+        }
+
+        /* Camada Base: Chão/Terreno */
+        .layer-base {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            image-rendering: pixelated;
+        }
+
+        /* Camada Superior: Objetos e Estruturas */
+        .layer-top {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+            image-rendering: pixelated;
+            transition: opacity 0.3s ease;
+        }
+
+        /* Controle de Visibilidade por Zoom */
+        .zoom-1 .layer-top { opacity: 0; } /* Satélite: só mostra o chão */
+        .zoom-2 .layer-top { opacity: 1; } /* Zoom in: revela estruturas/itens */
+
+        /* Interface (UI) */
+        #ui {
+            position: fixed; 
+            bottom: 30px; 
+            width: 100%;
+            display: flex; 
+            justify-content: center; 
+            z-index: 2000;
+        }
+
+        input[type=range] {
+            width: 70%; height: 10px; border-radius: 5px;
+            background: #2d3748; appearance: none;
+            accent-color: #718096;
+        }
+    </style>
+</head>
+<body class="zoom-1">
+
+<div id="map-container">
+    <div id="map"></div>
+</div>
+
+<div id="ui">
+    <input type="range" id="zoom" min="1" max="2" step="1" value="1">
+</div>
+
+<script>
+    const map = document.getElementById('map');
+
+    // Dicionário de URLs de Imagens (Texturas Reais)
+    // Usando placeholder images para exemplificar. No app final, você aponta para os arquivos do seu Supabase.
+    const texturasBase = [
+        'url("https://images.unsplash.com/photo-1518015509930-b3b3a3ab8000?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w1ODc0MzR8MHwxfHNlYXJjaHwyfHxkYXJrJTIwZ3Jhc3N8ZW58MHx8fHwxNzEwOTYxMjAw&ixlib=rb-4.0.3&q=80&w=100")', // Grama Escura
+        'url("https://images.unsplash.com/photo-1463123081488-789f998ac9c4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w1ODc0MzR8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZGlydHxlbnwwfHx8fDE3MTA5NjEyMjA&ixlib=rb-4.0.3&q=80&w=100")'  // Terra Escura
+    ];
+
+    const texturasEstruturas = [
+        'url("https://cdn-icons-png.flaticon.com/128/3448/3448339.png")', // Ícone de Castelo/Ruína (Pixel Art style se baixar correto)
+        'url("https://cdn-icons-png.flaticon.com/128/10705/10705359.png")' // Espada
+    ];
+
+    // Gerando o mapa 15x15 (225 células)
+    for (let i = 0; i < 225; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+
+        // Cria a camada do chão
+        const baseLayer = document.createElement('div');
+        baseLayer.className = 'layer-base';
+        // Escolhe grama ou terra aleatoriamente
+        baseLayer.style.backgroundImage = texturasBase[Math.floor(Math.random() * texturasBase.length)];
+
+        // Cria a camada de objetos (nem toda célula tem objeto)
+        const topLayer = document.createElement('div');
+        topLayer.className = 'layer-top';
+        
+        // 20% de chance de ter uma estrutura/objeto na célula
+        if (Math.random() > 0.8) {
+            topLayer.style.backgroundImage = texturasEstruturas[Math.floor(Math.random() * texturasEstruturas.length)];
+        }
+
+        cell.appendChild(baseLayer);
+        cell.appendChild(topLayer);
+        map.appendChild(cell);
+    }
+
+    // Lógica do controle de Zoom
+    document.getElementById('zoom').addEventListener('input', (e) => {
+        const v = e.target.value;
+        document.body.className = 'zoom-' + v;
+        // Ajusta a escala física do mapa inteiro
+        map.style.transform = `scale(${v == 1 ? 1 : 2.5})`;
+    });
+</script>
+</body>
+</html>

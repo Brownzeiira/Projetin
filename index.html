@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>L.O.R.E. - Motor de Zoom Semântico</title>
+    <style>
+        :root {
+            /* Paleta Dark Goth / RPG Noturno */
+            --bg-color: #0d1117;
+            --grid-size: 40px;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: #c9d1d9;
+            font-family: -apple-system, monospace;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* Controles de UI na tela */
+        #ui-layer {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            background: rgba(13, 17, 23, 0.85);
+            padding: 15px 25px;
+            border-radius: 12px;
+            border: 1px solid #30363d;
+            backdrop-filter: blur(5px);
+            text-align: center;
+            width: 80%;
+            max-width: 350px;
+        }
+
+        #zoom-slider {
+            width: 100%;
+            margin-top: 10px;
+            accent-color: #58a6ff;
+        }
+
+        /* Container principal do Mapa */
+        #map-container {
+            flex-grow: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        /* O Mapa em si, que receberá o Scale */
+        #map {
+            display: grid;
+            grid-template-columns: repeat(15, var(--grid-size));
+            grid-template-rows: repeat(15, var(--grid-size));
+            gap: 0;
+            transform-origin: center center;
+            transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            /* Força a renderização em blocos */
+            image-rendering: pixelated; 
+        }
+
+        /* Célula individual do grid */
+        .cell {
+            width: var(--grid-size);
+            height: var(--grid-size);
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 24px;
+        }
+
+        /* TRUQUE DE TEXTURA:
+           Saturação alta, contraste alto e sombra dura para 
+           tirar o aspecto vetorizado do emoji de iOS e parecer 2D Retro 
+        */
+        .emoji-layer {
+            position: absolute;
+            transition: opacity 0.3s ease;
+            filter: contrast(1.4) saturate(1.2) drop-shadow(2px 2px 0px rgba(0,0,0,0.8));
+        }
+
+        /* Controle de visibilidade baseado em classes injetadas via JS */
+        /* Nível 1: Satélite (Sempre visível) */
+        .layer-macro { opacity: 1; z-index: 1; }
+        
+        /* Nível 2: Estruturas (Escondido no Zoom < 2) */
+        .layer-mid { opacity: 0; z-index: 2; font-size: 20px; }
+        .zoom-level-2 .layer-mid, .zoom-level-3 .layer-mid { opacity: 1; }
+
+        /* Nível 3: Chão/Objetos (Escondido no Zoom < 3) */
+        .layer-micro { opacity: 0; z-index: 3; font-size: 14px; margin-top: 15px; margin-left: 15px; }
+        .zoom-level-3 .layer-micro { opacity: 1; }
+
+    </style>
+</head>
+<body class="zoom-level-1">
+
+    <div id="map-container">
+        <div id="map"></div>
+    </div>
+
+    <div id="ui-layer">
+        <div>Nível de Visão: <span id="zoom-label">1 - Satélite</span></div>
+        <input type="range" id="zoom-slider" min="1" max="3" step="0.1" value="1">
+    </div>
+
+    <script>
+        const mapElement = document.getElementById('map');
+        const zoomSlider = document.getElementById('zoom-slider');
+        const zoomLabel = document.getElementById('zoom-label');
+        const body = document.body;
+
+        // Dicionários de Emojis para simular o mundo denso
+        const biomas = ['🟩', '🟩', '🟩', '🌲', '🌲', '⛰️', '⛰️', '🟦', '🟦', '🟫']; 
+        const estruturas = ['🏠', '🕳️', '🏰', '⛪', '⛺', '🏚️', '']; // Muitos vazios para não lotar tudo
+        const objetosChao = ['🗡️', '🦴', '🪨', '🪵', '🍄', '💰', '🛡️', '🩸', '', '', '', ''];
+
+        // Função para pegar item aleatório
+        const randomItem = (arr, chanceEmpty = 0) => {
+            if (Math.random() < chanceEmpty) return '';
+            return arr[Math.floor(Math.random() * arr.length)];
+        };
+
+        // Gerar Mapa 15x15
+        for (let i = 0; i < 225; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+
+            // Camada 1: Terreno
+            const macro = document.createElement('div');
+            macro.className = 'emoji-layer layer-macro';
+            macro.innerText = randomItem(biomas);
+            
+            // Camada 2: Estruturas (Apenas 30% de chance de ter estrutura)
+            const mid = document.createElement('div');
+            mid.className = 'emoji-layer layer-mid';
+            mid.innerText = randomItem(estruturas, 0.7);
+
+            // Camada 3: Objetos perdidos (Apenas 40% de chance, e evita ficar na água)
+            const micro = document.createElement('div');
+            micro.className = 'emoji-layer layer-micro';
+            if (macro.innerText !== '🟦') {
+                micro.innerText = randomItem(objetosChao, 0.6);
+            }
+
+            cell.appendChild(macro);
+            if(mid.innerText) cell.appendChild(mid);
+            if(micro.innerText) cell.appendChild(micro);
+            mapElement.appendChild(cell);
+        }
+
+        // Lógica de Zoom Semântico
+        zoomSlider.addEventListener('input', (e) => {
+            const zoomValue = parseFloat(e.target.value);
+            
+            // Aplica o scale físico no mapa
+            // Multiplicamos para o zoom ser agressivo (ex: 1x, 2.5x, 4x)
+            let scaleMultiplier = zoomValue == 1 ? 1 : zoomValue * 1.5;
+            mapElement.style.transform = `scale(${scaleMultiplier})`;
+
+            // Atualiza as classes CSS para revelar as camadas semânticas
+            if (zoomValue < 1.8) {
+                body.className = 'zoom-level-1';
+                zoomLabel.innerText = "1 - Satélite (Biomas)";
+            } else if (zoomValue >= 1.8 && zoomValue < 2.8) {
+                body.className = 'zoom-level-2';
+                zoomLabel.innerText = "2 - Área (Estruturas)";
+            } else {
+                body.className = 'zoom-level-3';
+                zoomLabel.innerText = "3 - Solo (Itens e Detalhes)";
+            }
+        });
+    </script>
+</body>
+</html>
